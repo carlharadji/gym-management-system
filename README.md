@@ -107,6 +107,3 @@ pnpm start
 
 Database files are local runtime data and are intentionally excluded from Git. Back them up separately before moving computers or making operational changes.
 
-## Current Scope
-
-This version intentionally excludes authentication, payments, receipts, attendance and QR check-in, a public website, a member portal, second-branch support, cloud services, and advanced reports.
