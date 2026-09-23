@@ -1,0 +1,48 @@
+# Dependencies and build output
+node_modules/
+dist/
+*.tsbuildinfo
+
+# Environment files (keep a documented template if one is added)
+.env
+.env.*
+!.env.example
+
+# Local databases, journals, temporary files, and backups
+data/
+*.sqlite
+*.sqlite-*
+*.db
+*.db-*
+*.sqlite3
+*.sqlite3-*
+*.db-journal
+*.db-shm
+*.db-wal
+*.backup
+*.bak
+
+# Logs
+*.log
+logs/
+npm-debug.log*
+pnpm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Local Codex and agent tooling
+.agents/
+.codex/
+.impeccable/
+skills-lock.json
+DESIGN.md
+PRODUCT.md
+
+# Editors and operating systems
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+Desktop.ini
