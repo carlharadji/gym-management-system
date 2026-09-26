@@ -26,8 +26,8 @@ jobs:
           cache: pnpm
       - uses: actions/configure-pages@v5
       - run: pnpm install --frozen-lockfile
-      - run: pnpm test:smoke
       - run: pnpm build:demo
+      - run: pnpm test:smoke
       - uses: actions/upload-pages-artifact@v4
         with:
           path: dist
