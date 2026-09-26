@@ -1,9 +1,11 @@
 import React from "react";
 import { AlertCircle, RefreshCw } from "lucide-react";
 import { AppShell, Dashboard, PageHeader, Roster } from "./Operations";
+import { AttendancePage, CheckinPage, ReportsPage } from "./Activity";
+import { AssistantWidget } from "./AssistantWidget";
 import { AddMemberDialog, DeleteDialog, DuplicateNameDialog, MemberDrawer } from "./MemberProfile";
 import { Button, Toast } from "./ui";
-import { compareMemberNo, formatDate, messageFor, nameOf, nextNumber, planLabel, request, today, type DetailMode, type Member, type MemberForm, type Membership, type MembershipType, type MemberStatusFilter, type ToastState, type View } from "./model";
+import { compareMemberNo, formatDate, messageFor, nameOf, nextNumber, planLabel, request, today, type Checkin, type DetailMode, type Member, type MemberForm, type Membership, type MembershipType, type MemberStatusFilter, type ToastState, type View } from "./model";
 
 export default function App() {
   const [view, setView] = React.useState<View>("dashboard");
@@ -11,6 +13,7 @@ export default function App() {
   const [query, setQuery] = React.useState("");
   const [members, setMembers] = React.useState<Member[]>([]);
   const [memberships, setMemberships] = React.useState<Membership[]>([]);
+  const [checkins, setCheckins] = React.useState<Checkin[]>([]);
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);
   const [selected, setSelected] = React.useState<string | null>(null);
@@ -26,9 +29,10 @@ export default function App() {
   const load = React.useCallback(async (announce = false) => {
     setLoading(true);
     try {
-      const snapshot = await request<{ members: Member[]; memberships: Membership[] }>("/api/members");
+      const [snapshot, attendance] = await Promise.all([request<{ members: Member[]; memberships: Membership[] }>("/api/members"), request<{ checkins: Checkin[] }>("/api/attendance")]);
       setMembers([...snapshot.members].sort(compareMemberNo));
       setMemberships(snapshot.memberships);
+      setCheckins(attendance.checkins);
       setError(null);
       if (announce) setToast({ type: "success", title: "Records refreshed", message: "Member records are up to date." });
     } catch (cause) { setError(messageFor(cause, "Unable to load member records.")); }
@@ -86,18 +90,27 @@ export default function App() {
       await request(`/api/members/${encodeURIComponent(id)}`, { method: "DELETE" });
       setMembers(current => current.filter(item => item.id !== id));
       setMemberships(current => current.filter(item => item.memberId !== id));
+      setCheckins(current => current.filter(item => item.memberId !== id));
       setDeleting(null);
       setSelected(null);
       setToast({ type: "success", title: "Member deleted", message: member ? `${nameOf(member)} and their membership history were removed.` : "Member was removed." });
     } catch (cause) { report(cause, "Member not deleted"); throw cause; }
   }
+  async function checkIn(member: Member) {
+    try {
+      const record = await request<Checkin>("/api/attendance", { method: "POST", body: JSON.stringify({ memberId: member.id }) });
+      setCheckins(current => [{ ...record, memberNo: member.memberNo, firstName: member.firstName, lastName: member.lastName }, ...current]);
+      setToast({ type: "success", title: "Check-in recorded", message: `${nameOf(member)} checked in successfully.` });
+    } catch (cause) { report(cause, "Check-in not recorded"); throw cause; }
+  }
   return <>
     <AppShell view={view} onNavigate={next => { if (next === "members") openMembers(); else setView(next); }} loading={loading} error={!!error} date={date}>
       <PageHeader view={view} onAdd={() => setAddOpen(true)} />
       {error ? <div className="inline-alert" role="alert"><AlertCircle size={18} /><div><strong>Member records could not be refreshed</strong><p>{error}{members.length ? " Showing the last loaded records." : ""}</p></div><Button variant="secondary" disabled={loading} onClick={() => void load()}>{loading ? "Retrying…" : "Try again"}</Button></div> : null}
-      {loading && !members.length ? <div className="loading-state" role="status"><span>Loading member records…</span><div className="skeleton-summary" /><div className="skeleton-row" /><div className="skeleton-row" /><div className="skeleton-row" /></div> : error && !members.length ? null : view === "dashboard" ? <Dashboard members={members} memberships={memberships} onOpen={openMembers} onMember={openMember} onAdd={() => setAddOpen(true)} /> : <Roster members={members} memberships={memberships} filter={filter} onFilter={setFilter} query={query} onQuery={setQuery} onOpen={openMember} onAdd={() => setAddOpen(true)} loading={loading} onRefresh={() => void load(true)} />}
-      <footer className="workspace-footer"><span>Gym <span aria-hidden="true">/</span> Member operations</span>{view === "dashboard" ? <button disabled={loading} onClick={() => void load(true)}><RefreshCw size={13} className={loading ? "is-spinning" : ""} />{loading ? "Refreshing" : "Refresh records"}</button> : <span>Ordered by member number</span>}</footer>
+      {loading && !members.length ? <div className="loading-state" role="status"><span>Loading gym records…</span><div className="skeleton-summary" /><div className="skeleton-row" /><div className="skeleton-row" /><div className="skeleton-row" /></div> : error && !members.length ? null : view === "dashboard" ? <Dashboard members={members} memberships={memberships} checkins={checkins} onOpen={openMembers} onMember={openMember} onAdd={() => setAddOpen(true)} onNavigate={setView} /> : view === "members" ? <Roster members={members} memberships={memberships} filter={filter} onFilter={setFilter} query={query} onQuery={setQuery} onOpen={openMember} onAdd={() => setAddOpen(true)} loading={loading} onRefresh={() => void load(true)} /> : view === "checkin" ? <CheckinPage members={members} memberships={memberships} checkins={checkins} onCheckin={checkIn} onMember={openMember} /> : view === "attendance" ? <AttendancePage members={members} memberships={memberships} checkins={checkins} onMember={openMember} /> : <ReportsPage members={members} memberships={memberships} checkins={checkins} onMember={openMember} />}
+      <footer className="workspace-footer"><span>Gym <span aria-hidden="true">/</span> Member operations</span>{view === "members" ? <span>Ordered by member number</span> : <button disabled={loading} onClick={() => void load(true)}><RefreshCw size={13} className={loading ? "is-spinning" : ""} />{loading ? "Refreshing" : "Refresh records"}</button>}</footer>
     </AppShell>
+    <AssistantWidget />
     {selectedMember ? <MemberDrawer key={selectedMember.id} member={selectedMember} memberships={memberships.filter(item => item.memberId === selectedMember.id)} mode={mode} onMode={setMode} onClose={() => setSelected(null)} onSave={saveMember} onRenew={saveMembership} onDelete={() => setDeleting(selectedMember)} /> : null}
     {addOpen ? <AddMemberDialog memberNo={nextNumber(members)} memberNos={members.map(member => member.memberNo)} onClose={() => setAddOpen(false)} onSave={addMember} /> : null}
     {duplicateForm ? <DuplicateNameDialog form={duplicateForm} onCancel={() => setDuplicateForm(null)} onConfirm={() => addMember(duplicateForm, true)} /> : null}

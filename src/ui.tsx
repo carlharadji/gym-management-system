@@ -57,8 +57,8 @@ export function Avatar({ member, large = false }: { member: Member; large?: bool
 export function MemberIdentity({ member }: { member: Member }) {
   return <span className="member-identity"><Avatar member={member} /><span><strong>{nameOf(member)}</strong><small>{member.memberNo}</small></span></span>;
 }
-export function SearchField({ value, onChange, inputRef }: { value: string; onChange: (value: string) => void; inputRef?: React.Ref<HTMLInputElement> }) {
-  return <div className="search-field"><Search size={19} aria-hidden="true" /><input ref={inputRef} type="search" value={value} onChange={event => onChange(event.target.value)} placeholder="Find a member by name, number or email" aria-label="Find a member" autoComplete="off" />{value ? <IconButton label="Clear search" onClick={() => onChange("")}><X size={16} /></IconButton> : <kbd aria-hidden="true">/</kbd>}</div>;
+export function SearchField({ value, onChange, inputRef, onKeyDown }: { value: string; onChange: (value: string) => void; inputRef?: React.Ref<HTMLInputElement>; onKeyDown?: React.KeyboardEventHandler<HTMLInputElement> }) {
+  return <div className="search-field"><Search size={19} aria-hidden="true" /><input ref={inputRef} type="search" value={value} onChange={event => onChange(event.target.value)} onKeyDown={onKeyDown} placeholder="Find a member by name, number or email" aria-label="Find a member" autoComplete="off" />{value ? <IconButton label="Clear search" onClick={() => onChange("")}><X size={16} /></IconButton> : <kbd aria-hidden="true">/</kbd>}</div>;
 }
 export function Empty({ title, message, children }: { title: string; message: string; children?: React.ReactNode }) {
   return <div className="empty-state"><h3>{title}</h3><p>{message}</p>{children}</div>;

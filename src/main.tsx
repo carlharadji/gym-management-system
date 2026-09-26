@@ -3,6 +3,8 @@ import { createRoot } from "react-dom/client";
 import App from "./App";
 import "@fontsource-variable/manrope";
 import "./operations.css";
+import "./activity.css";
+import "./assistant.css";
 
 const rootElement = document.getElementById("root");
 

@@ -4,6 +4,7 @@ import { createReadStream, existsSync, mkdirSync, statSync } from "node:fs";
 import { DatabaseSync } from "node:sqlite";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { chooseOperation, createInsights, describeResult, explainResult } from "./insights.mjs";
 
 const rootDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const dataDir = path.join(rootDir, "data");
@@ -27,6 +28,7 @@ const db = new DatabaseSync(dbPath);
 db.exec("PRAGMA foreign_keys = ON");
 
 initializeDatabase();
+const insights = createInsights(db);
 
 const server = createServer(async (request, response) => {
   setCorsHeaders(request, response);
@@ -90,6 +92,19 @@ function initializeDatabase() {
 
     CREATE INDEX IF NOT EXISTS idx_memberships_member_id_end_date
     ON memberships(member_id, end_date, created_at);
+
+    CREATE TABLE IF NOT EXISTS attendance_checkins (
+      id TEXT PRIMARY KEY,
+      member_id TEXT NOT NULL REFERENCES members(id) ON DELETE CASCADE,
+      checked_in_at TEXT NOT NULL,
+      checkin_date TEXT NOT NULL
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_checkins_date_time
+    ON attendance_checkins(checkin_date, checked_in_at DESC);
+
+    CREATE INDEX IF NOT EXISTS idx_checkins_member_time
+    ON attendance_checkins(member_id, checked_in_at DESC);
   `);
 
   db.exec("PRAGMA optimize");
@@ -103,6 +118,36 @@ async function handleApiRequest(request, response, requestUrl) {
 
   if (request.method === "GET" && requestUrl.pathname === "/api/members") {
     sendJson(response, 200, getSnapshot());
+    return;
+  }
+
+  if (request.method === "GET" && requestUrl.pathname === "/api/attendance") {
+    sendJson(response, 200, { checkins: getAttendance(requestUrl.searchParams) });
+    return;
+  }
+
+  if (request.method === "POST" && requestUrl.pathname === "/api/attendance") {
+    const body = await readJson(request);
+    sendJson(response, 201, createCheckin(body));
+    return;
+  }
+
+  if (request.method === "POST" && requestUrl.pathname === "/api/assistant/ask") {
+    const body = await readJson(request);
+    const question = requireText(body.question, "Question");
+    if (question.length > 300) throw new ApiError(400, "Question must be 300 characters or less.");
+    let chosen;
+    try { chosen = await chooseOperation(question, insights.operations); }
+    catch (error) { throw new ApiError(502, error instanceof Error ? error.message : "AI service unavailable."); }
+    if (!chosen.name) {
+      sendJson(response, 200, { answer: "I can answer questions about membership counts, today's visits, expiring members, inactive members, busiest days, and attendance summaries.", operation: null, data: null, mode: chosen.mode });
+      return;
+    }
+    const data = insights.run(chosen.name);
+    let answer;
+    try { answer = chosen.mode === "ai" ? await explainResult(question, chosen.name, data) : describeResult(chosen.name, data); }
+    catch (error) { throw new ApiError(502, error instanceof Error ? error.message : "AI service unavailable."); }
+    sendJson(response, 200, { answer, operation: chosen.name, data, mode: chosen.mode });
     return;
   }
 
@@ -175,6 +220,52 @@ function getMemberships() {
       ORDER BY created_at DESC`
     )
     .all();
+}
+
+function getAttendance(filters = new URLSearchParams()) {
+  const clauses = [];
+  const values = [];
+  const memberId = filters.get("memberId");
+  const date = filters.get("date");
+  const from = filters.get("from");
+  const to = filters.get("to");
+  if (memberId) { clauses.push("a.member_id = ?"); values.push(memberId); }
+  if (date) { clauses.push("a.checkin_date = ?"); values.push(requireDate(date, "Date")); }
+  if (from) { clauses.push("a.checkin_date >= ?"); values.push(requireDate(from, "Start date")); }
+  if (to) { clauses.push("a.checkin_date <= ?"); values.push(requireDate(to, "End date")); }
+  if (from && to && from > to) throw new ApiError(400, "Start date must be before end date.");
+  return db.prepare(`SELECT a.id, a.member_id AS memberId, a.checked_in_at AS checkedInAt,
+    a.checkin_date AS checkinDate, m.member_no AS memberNo,
+    m.first_name AS firstName, m.last_name AS lastName
+    FROM attendance_checkins a JOIN members m ON m.id = a.member_id
+    ${clauses.length ? `WHERE ${clauses.join(" AND ")}` : ""}
+    ORDER BY a.checked_in_at DESC`).all(...values);
+}
+
+function currentMembership(memberId) {
+  return db.prepare(`SELECT start_date AS startDate, end_date AS endDate
+    FROM memberships WHERE member_id = ?
+    ORDER BY end_date DESC, created_at DESC LIMIT 1`).get(memberId);
+}
+
+function createCheckin(body) {
+  const memberId = requireText(body.memberId, "Member");
+  if (!getMember(memberId)) throw new ApiError(404, "Member not found.");
+  const now = new Date();
+  const checkinDate = dateKeyFromDate(now);
+  const membership = currentMembership(memberId);
+  if (!membership || membership.endDate < checkinDate) {
+    throw new ApiError(409, "Membership expired. Renew it before checking in.");
+  }
+  const latestCheckin = db.prepare(`SELECT checked_in_at AS checkedInAt FROM attendance_checkins
+    WHERE member_id = ? ORDER BY checked_in_at DESC LIMIT 1`).get(memberId);
+  if (latestCheckin && now.getTime() - Date.parse(latestCheckin.checkedInAt) < 5 * 60 * 1000) {
+    throw new ApiError(409, "This member checked in less than five minutes ago.");
+  }
+  const record = { id: makeId("visit"), memberId, checkedInAt: now.toISOString(), checkinDate };
+  db.prepare(`INSERT INTO attendance_checkins (id, member_id, checked_in_at, checkin_date)
+    VALUES (?, ?, ?, ?)`).run(record.id, record.memberId, record.checkedInAt, record.checkinDate);
+  return record;
 }
 
 function getMember(memberId) {

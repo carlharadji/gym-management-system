@@ -15,6 +15,10 @@ The app is designed primarily to run on the gym's own computer and does not requ
 - Automatic Active or Expired status based on the latest membership
 - Membership updates that preserve prior membership history
 - Persistent SQLite storage and optional sample data
+- Member check-in with active membership validation and a five-minute duplicate guard
+- Today's attendance, searchable attendance history, and member visit history
+- Expiring membership counts and practical visit reports
+- Read-only admin assistant for supported membership and attendance questions
 - Responsive desktop-first interface suitable for tablets
 
 > **Authentication note:** The current "System Admin" text is a UI label only. This version does not include login, authentication, or role-based authorization and should not be exposed directly to an untrusted network.
@@ -96,6 +100,8 @@ The server reads configuration from environment variables:
 | `PORT` | `3001` | Local HTTP port for the API and built frontend |
 | `DB_PATH` | `data/gym.sqlite` | Path to the SQLite database file |
 | `CORS_ORIGIN` | local Vite origins | Optional comma-separated additional allowed browser origins |
+| `OPENAI_API_KEY` | unset | Optional backend-only key for AI-selected data operations |
+| `OPENAI_MODEL` | `gpt-4.1-mini` | Optional model name when the API key is configured |
 
 PowerShell example:
 
@@ -107,3 +113,4 @@ pnpm start
 
 Database files are local runtime data and are intentionally excluded from Git. Back them up separately before moving computers or making operational changes.
 
+The assistant works without a key for common supported questions through local matching. With `OPENAI_API_KEY` set on the server, an AI model selects one of seven fixed read-only operations and receives that operation's structured result to compose its answer. The key stays on the backend; the question and relevant result data are sent to the AI provider. No model-generated SQL is executed. This app still has no authentication, so keep it on the trusted local machine.

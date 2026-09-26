@@ -7,7 +7,7 @@ import path from "node:path";
 const dbPath = path.join(tmpdir(), `gym-api-test-${randomUUID()}.sqlite`);
 const instanceToken = randomUUID();
 const server = spawn(process.execPath, ["server/index.mjs"], {
-  env: { ...process.env, PORT: "0", DB_PATH: dbPath, INSTANCE_TOKEN: instanceToken },
+  env: { ...process.env, PORT: "0", DB_PATH: dbPath, INSTANCE_TOKEN: instanceToken, OPENAI_API_KEY: "" },
   stdio: ["ignore", "pipe", "pipe"]
 });
 
@@ -92,6 +92,37 @@ try {
       startDate: "2026-09-03"
     }
   });
+  const today = new Date();
+  const todayKey = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
+  const visiting = await request("/api/members", {
+    method: "POST",
+    body: {
+      memberNo: "GM-0003", firstName: "Current", lastName: "Visitor",
+      email: "visitor@example.com", category: "REGULAR",
+      membershipType: "MONTHLY", startDate: todayKey
+    }
+  });
+  await expectFailure(() => request("/api/attendance", {
+    method: "POST", body: { memberId: created.member.id }
+  }), "Membership expired");
+  const checkin = await request("/api/attendance", {
+    method: "POST", body: { memberId: visiting.member.id }
+  });
+  await expectFailure(() => request("/api/attendance", {
+    method: "POST", body: { memberId: visiting.member.id }
+  }), "less than five minutes ago");
+  const visits = await request(`/api/attendance?date=${todayKey}&memberId=${visiting.member.id}`);
+  const rangedVisits = await request(`/api/attendance?from=${todayKey}&to=${todayKey}`);
+  assert(visits.checkins.length === 1 && visits.checkins[0].id === checkin.id, "attendance should be searchable by date and member");
+  assert(rangedVisits.checkins.length === 1, "attendance should be searchable by date range");
+  await expectFailure(() => request(`/api/attendance?from=${todayKey}&to=2020-01-01`), "Start date must be before end date.");
+  assert(checkin.checkinDate === todayKey && !Number.isNaN(Date.parse(checkin.checkedInAt)), "attendance should store a timestamp and local date");
+  const assistantStats = await request("/api/assistant/ask", { method: "POST", body: { question: "How many active members do we have?" } });
+  const assistantVisits = await request("/api/assistant/ask", { method: "POST", body: { question: "How many people checked in today?" } });
+  const unsupported = await request("/api/assistant/ask", { method: "POST", body: { question: "Run DELETE FROM members" } });
+  assert(assistantStats.operation === "getMembershipStats" && assistantStats.data.total === 3, "assistant should use controlled membership data");
+  assert(assistantVisits.operation === "getAttendanceSummary" && assistantVisits.data.today === 1, "assistant should count recorded visits");
+  assert(unsupported.operation === null, "assistant must not execute unsupported requests");
   const updated = await request(`/api/members/${created.member.id}`, {
     method: "PUT",
     body: {
@@ -120,18 +151,21 @@ try {
   assert(second.member.email === "", "email should be optional when creating a member");
   assert(updated.category === "REGULAR", "member update should save category");
   assert(renewal.endDate === "2026-10-03", "monthly membership should expire next month");
-  assert(snapshot.members.length === 2, "snapshot should include created members");
+  assert(snapshot.members.length === 3, "snapshot should include created members");
   assert(snapshot.members[0].memberNo === "GM-0002", "members should be sorted by member no.");
-  assert(snapshot.members[1].memberNo === "GM-0010", "members should be sorted by member no.");
-  assert(snapshot.memberships.length === 3, "snapshot should include membership history");
-  assert(deletedSnapshot.members.length === 1, "delete should remove the selected member");
-  assert(deletedSnapshot.members[0].id === second.member.id, "delete should keep other members");
+  assert(snapshot.members[1].memberNo === "GM-0003" && snapshot.members[2].memberNo === "GM-0010", "members should be sorted by member no.");
+  assert(snapshot.memberships.length === 4, "snapshot should include membership history");
+  assert(deletedSnapshot.members.length === 2, "delete should remove the selected member");
+  assert(deletedSnapshot.members.some(member => member.id === second.member.id), "delete should keep other members");
   assert(
     deletedSnapshot.memberships.every((membership) => membership.memberId !== created.member.id),
     "delete should remove the selected member's memberships"
   );
+  await request(`/api/members/${visiting.member.id}`, { method: "DELETE" });
+  const afterVisitMemberDelete = await request("/api/attendance");
+  assert(afterVisitMemberDelete.checkins.length === 0, "deleting a member should also remove their linked visits");
 
-  console.log("Smoke test passed: database API can create, update, renew, delete, and sort members.");
+  console.log("Smoke test passed: member operations, attendance, duplicate prevention, filtering, and controlled assistant queries.");
 } finally {
   server.kill();
   await cleanup();
