@@ -2,7 +2,13 @@
 
 A local-first member management application for a single gym branch. It replaces paper-based member records with a searchable database, automatic membership status calculation, and a straightforward dashboard for front-desk or manager use.
 
-The app is designed primarily to run on the gym's own computer and does not require cloud services. It can later be extended for attendance, multiple branches, and hosted access without changing the current SQLite-based MVP.
+The full application is designed primarily to run on the gym's own computer and does not require cloud services. The separate portfolio demo is a static, sample-data build.
+
+## Portfolio Demo
+
+[Open the interactive demo](https://carlharadji.github.io/gym-management-system/). It uses fictional sample records stored only in your browser tab. You can add or edit members, renew memberships, check in members, and explore reports. Use **Reset sample data** to restore the starting state. No gym database or API key is deployed with the demo; its assistant uses local rule-based answers, not an LLM.
+
+The full local-first application below uses the Node API and persistent SQLite storage. GitHub Pages only hosts the separate static demo build.
 
 ## Features
 
@@ -42,8 +48,8 @@ The repository records the intended package manager version in `package.json`. I
 ## Installation
 
 ```bash
-git clone <repository-url>
-cd gym
+git clone https://github.com/carlharadji/gym-management-system.git
+cd gym-management-system
 pnpm install
 ```
 
@@ -80,6 +86,7 @@ pnpm start:local
 ```bash
 pnpm typecheck
 pnpm build
+pnpm build:demo
 pnpm test:smoke
 ```
 

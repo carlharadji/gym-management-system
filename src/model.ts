@@ -10,6 +10,7 @@ export type Checkin = { id: string; memberId: string; checkedInAt: string; check
 export type MemberForm = { memberNo: string; firstName: string; lastName: string; email: string; category: MemberCategory; membershipType: MembershipType; startDate: string; endDate: string };
 export type ToastState = { type: "success" | "error"; title: string; message: string };
 
+export const DEMO_MODE = import.meta.env.VITE_DEMO_MODE === "true";
 export const API_BASE = import.meta.env.DEV ? "http://127.0.0.1:3001" : "";
 export const dateKey = (date: Date) => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
 export const today = () => dateKey(new Date());
@@ -27,6 +28,6 @@ export const compareMemberNo = (a: Member, b: Member) => a.memberNo.localeCompar
 export function endDate(startDate: string, plan: MembershipType) { const start = parseDate(startDate || today()); if (plan === "DAILY") { start.setDate(start.getDate() + 1); return dateKey(start); } const target = new Date(start); const day = target.getDate(); target.setDate(1); target.setMonth(target.getMonth() + 1); target.setDate(Math.min(day, new Date(target.getFullYear(), target.getMonth() + 1, 0).getDate())); return dateKey(target); }
 export function blankForm(memberNo: string): MemberForm { const startDate = today(); return { memberNo, firstName: "", lastName: "", email: "", category: "REGULAR", membershipType: "MONTHLY", startDate, endDate: endDate(startDate, "MONTHLY") }; }
 export function nextNumber(members: Member[]) { const highest = members.reduce((max, member) => Math.max(max, Number(member.memberNo.replace(/\D/g, "")) || 0), 0); return `GM-${String(highest + 1).padStart(4, "0")}`; }
-export async function request<T>(path: string, options: RequestInit = {}) { const headers = new Headers(options.headers); if (options.body && !headers.has("Content-Type")) headers.set("Content-Type", "application/json"); const response = await fetch(`${API_BASE}${path}`, { ...options, headers }); const payload = await response.json().catch(() => null); if (!response.ok) throw new Error(payload?.error ?? "Request failed."); return payload as T; }
+export async function request<T>(path: string, options: RequestInit = {}) { if (DEMO_MODE) return (await import("./demo")).demoRequest<T>(path, options); const headers = new Headers(options.headers); if (options.body && !headers.has("Content-Type")) headers.set("Content-Type", "application/json"); const response = await fetch(`${API_BASE}${path}`, { ...options, headers }); const payload = await response.json().catch(() => null); if (!response.ok) throw new Error(payload?.error ?? "Request failed."); return payload as T; }
 export function messageFor(error: unknown, fallback: string) { return error instanceof TypeError ? "Cannot reach the database server. Start the app with pnpm dev." : error instanceof Error && error.message ? error.message : fallback; }
 

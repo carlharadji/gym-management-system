@@ -1,6 +1,6 @@
 import React from "react";
 import { ChevronRight, MessageCircle, Send, X } from "lucide-react";
-import { messageFor, request } from "./model";
+import { DEMO_MODE, messageFor, request } from "./model";
 
 const suggestedQuestions = [
   "How many active members do we have?",
@@ -75,7 +75,7 @@ export function AssistantWidget() {
     >
       <header className="assistant-panel-header">
         <span className="assistant-panel-mark"><MessageCircle size={18} /></span>
-        <div><h2 id="assistant-title">Gym assistant</h2><p>Answers from your gym records</p></div>
+        <div><h2 id="assistant-title">Gym assistant</h2><p>{DEMO_MODE ? "Answers from sample records" : "Answers from your gym records"}</p></div>
         <button type="button" className="assistant-close" aria-label="Close assistant" title="Close assistant" onClick={() => { restoreFocusRef.current = true; panelRef.current?.hidePopover(); }}><X size={18} /></button>
       </header>
       <div className="assistant-panel-content">

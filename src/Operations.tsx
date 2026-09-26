@@ -1,18 +1,19 @@
 import React from "react";
-import { ArrowDown, ArrowRight, ArrowUpRight, CalendarCheck, CalendarDays, ChartNoAxesCombined, ChevronRight, Dumbbell, LayoutDashboard, Plus, RefreshCw, ScanLine, Users } from "lucide-react";
+import { ArrowDown, ArrowRight, ArrowUpRight, CalendarCheck, CalendarDays, ChartNoAxesCombined, ChevronRight, Dumbbell, LayoutDashboard, Plus, RefreshCw, RotateCcw, ScanLine, Users } from "lucide-react";
 import { Button, Empty, IconButton, MemberIdentity, SearchField, StatusMark } from "./ui";
-import { categoryLabel, expiringSoon, formatDate, formatTime, latest, nameOf, parseDate, planLabel, statusOf, today, type Checkin, type DetailMode, type Member, type Membership, type MemberStatusFilter, type View } from "./model";
+import { DEMO_MODE, categoryLabel, expiringSoon, formatDate, formatTime, latest, nameOf, parseDate, planLabel, statusOf, today, type Checkin, type DetailMode, type Member, type Membership, type MemberStatusFilter, type View } from "./model";
 
-export function AppShell({ view, onNavigate, loading, error, date, children }: { view: View; onNavigate: (view: View) => void; loading: boolean; error: boolean; date: string; children: React.ReactNode }) {
+export function AppShell({ view, onNavigate, onResetDemo, loading, error, date, children }: { view: View; onNavigate: (view: View) => void; onResetDemo: () => void; loading: boolean; error: boolean; date: string; children: React.ReactNode }) {
   return <div className="app-shell">
     <a className="skip-link" href="#main-content">Skip to content</a>
     <aside className="side-rail">
       <div className="brand"><span className="brand-mark"><Dumbbell size={24} strokeWidth={2.2} /></span><span className="brand-type"><strong>GYM<span>.</span></strong><small>Operations console</small></span></div>
       <div className="rail-label">Workspace</div>
       <nav aria-label="Main navigation">{([{ id: "dashboard", label: "Dashboard", Icon: LayoutDashboard }, { id: "checkin", label: "Check-in", Icon: ScanLine }, { id: "members", label: "Members", Icon: Users }, { id: "attendance", label: "Attendance", Icon: CalendarCheck }, { id: "reports", label: "Reports", Icon: ChartNoAxesCombined }] as const).map(({ id, label, Icon }) => <button key={id} className={`nav-button ${view === id ? "is-active" : ""}`} aria-current={view === id ? "page" : undefined} onClick={() => onNavigate(id)}><Icon size={18} /><span>{label}</span>{view === id ? <ChevronRight className="nav-chevron" size={15} /> : null}</button>)}</nav>
-      <div className="rail-bottom"><div className="branch-context"><span className="branch-dot" /><span>Single branch<span>Member management</span></span></div><div className="admin-context"><span className="admin-avatar">SA</span><span><strong>System Admin</strong><small>Front desk</small></span></div></div>
+      <div className="rail-bottom"><div className="branch-context"><span className="branch-dot" /><span>Single branch<span>Member management</span></span></div><div className="admin-context"><span className="admin-avatar">{DEMO_MODE ? "D" : "SA"}</span><span><strong>{DEMO_MODE ? "Demo workspace" : "System Admin"}</strong><small>Front desk</small></span></div></div>
     </aside>
-    <div className="main-column"><div className="utility-bar"><div className="breadcrumb"><span>Workspace</span><ChevronRight size={13} /><strong>{({ dashboard: "Dashboard", members: "Members", checkin: "Check-in", attendance: "Attendance", reports: "Reports" } as const)[view]}</strong></div><div className="utility-context"><span className={`connection-state ${error ? "has-error" : ""}`}><span />{loading ? "Loading records" : error ? "Connection unavailable" : "Local database"}</span><time dateTime={date}><CalendarDays size={14} />{new Intl.DateTimeFormat("en-PH", { weekday: "short", month: "short", day: "numeric", year: "numeric" }).format(parseDate(date))}</time></div></div>
+    <div className="main-column"><div className="utility-bar"><div className="breadcrumb"><span>Workspace</span><ChevronRight size={13} /><strong>{({ dashboard: "Dashboard", members: "Members", checkin: "Check-in", attendance: "Attendance", reports: "Reports" } as const)[view]}</strong></div><div className="utility-context"><span className={`connection-state ${error ? "has-error" : ""}`}><span />{loading ? "Loading records" : error ? "Connection unavailable" : DEMO_MODE ? "Sample data" : "Local database"}</span><time dateTime={date}><CalendarDays size={14} />{new Intl.DateTimeFormat("en-PH", { weekday: "short", month: "short", day: "numeric", year: "numeric" }).format(parseDate(date))}</time></div></div>
+      {DEMO_MODE ? <div className="demo-strip"><span><strong>Portfolio demo</strong> · Sample records stay in this browser tab.</span><button type="button" onClick={onResetDemo}><RotateCcw size={14} />Reset sample data</button></div> : null}
       <main className="workspace" id="main-content" tabIndex={-1}>{children}</main>
     </div>
   </div>;

@@ -5,7 +5,7 @@ import { AttendancePage, CheckinPage, ReportsPage } from "./Activity";
 import { AssistantWidget } from "./AssistantWidget";
 import { AddMemberDialog, DeleteDialog, DuplicateNameDialog, MemberDrawer } from "./MemberProfile";
 import { Button, Toast } from "./ui";
-import { compareMemberNo, formatDate, messageFor, nameOf, nextNumber, planLabel, request, today, type Checkin, type DetailMode, type Member, type MemberForm, type Membership, type MembershipType, type MemberStatusFilter, type ToastState, type View } from "./model";
+import { DEMO_MODE, compareMemberNo, formatDate, messageFor, nameOf, nextNumber, planLabel, request, today, type Checkin, type DetailMode, type Member, type MemberForm, type Membership, type MembershipType, type MemberStatusFilter, type ToastState, type View } from "./model";
 
 export default function App() {
   const [view, setView] = React.useState<View>("dashboard");
@@ -103,8 +103,17 @@ export default function App() {
       setToast({ type: "success", title: "Check-in recorded", message: `${nameOf(member)} checked in successfully.` });
     } catch (cause) { report(cause, "Check-in not recorded"); throw cause; }
   }
+  async function resetDemo() {
+    if (!DEMO_MODE) return;
+    const { resetDemo: reset } = await import("./demo");
+    reset();
+    setSelected(null);
+    setView("dashboard");
+    await load();
+    setToast({ type: "success", title: "Sample data restored", message: "The portfolio demo is back to its starting records." });
+  }
   return <>
-    <AppShell view={view} onNavigate={next => { if (next === "members") openMembers(); else setView(next); }} loading={loading} error={!!error} date={date}>
+    <AppShell view={view} onNavigate={next => { if (next === "members") openMembers(); else setView(next); }} onResetDemo={() => void resetDemo()} loading={loading} error={!!error} date={date}>
       <PageHeader view={view} onAdd={() => setAddOpen(true)} />
       {error ? <div className="inline-alert" role="alert"><AlertCircle size={18} /><div><strong>Member records could not be refreshed</strong><p>{error}{members.length ? " Showing the last loaded records." : ""}</p></div><Button variant="secondary" disabled={loading} onClick={() => void load()}>{loading ? "Retrying…" : "Try again"}</Button></div> : null}
       {loading && !members.length ? <div className="loading-state" role="status"><span>Loading gym records…</span><div className="skeleton-summary" /><div className="skeleton-row" /><div className="skeleton-row" /><div className="skeleton-row" /></div> : error && !members.length ? null : view === "dashboard" ? <Dashboard members={members} memberships={memberships} checkins={checkins} onOpen={openMembers} onMember={openMember} onAdd={() => setAddOpen(true)} onNavigate={setView} /> : view === "members" ? <Roster members={members} memberships={memberships} filter={filter} onFilter={setFilter} query={query} onQuery={setQuery} onOpen={openMember} onAdd={() => setAddOpen(true)} loading={loading} onRefresh={() => void load(true)} /> : view === "checkin" ? <CheckinPage members={members} memberships={memberships} checkins={checkins} onCheckin={checkIn} onMember={openMember} /> : view === "attendance" ? <AttendancePage members={members} memberships={memberships} checkins={checkins} onMember={openMember} /> : <ReportsPage members={members} memberships={memberships} checkins={checkins} onMember={openMember} />}
